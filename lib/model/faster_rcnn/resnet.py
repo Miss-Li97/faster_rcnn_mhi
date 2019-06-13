@@ -115,6 +115,7 @@ class ResNet(nn.Module):
     self.layer1 = self._make_layer(block, 64, layers[0])
     self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
     self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
+    #lhy:使用1x1的卷积将通道数降为1024
     self.conv2_1= nn.Conv2d(1280, 1024, kernel_size=1, stride=1, padding=0,bias=False)
     self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
 
@@ -260,7 +261,9 @@ class resnet(_fasterRCNN):
   def __init__(self, classes, num_layers=101, pretrained=False, class_agnostic=False):
     self.model_path = 'data/pretrained_model/resnet101_caffe.pth'
     print("res101")
+
     #self.dout_base_model = 1024
+    #lhy
     self.dout_base_model = 1280
 
     self.pretrained = pretrained
@@ -279,6 +282,7 @@ class resnet(_fasterRCNN):
     # Build resnet.
     self.RCNN_base = nn.Sequential(resnet.conv1, resnet.bn1,resnet.relu,
       resnet.maxpool,resnet.layer1,resnet.layer2,resnet.layer3)
+    #lhy:调用1x1的卷积进行降维
     self.convert1=nn.Sequential(resnet.conv2_1)
 
     self.RCNN_top = nn.Sequential(resnet.layer4)
@@ -327,6 +331,7 @@ class resnet(_fasterRCNN):
       self.RCNN_top.apply(set_bn_eval)
 
   def _head_to_tail(self, pool5):
+    #lhy；先降维，再进行池化
     fc7=self.convert1(pool5)
     fc7 = self.RCNN_top(fc7).mean(3).mean(2)
     #fc7 = self.RCNN_top(pool5).mean(3).mean(2)

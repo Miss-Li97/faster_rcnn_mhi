@@ -104,16 +104,16 @@ def parse_args():
 # resume trained model
   parser.add_argument('--r', dest='resume',
                       help='resume checkpoint or not',
-                      default=False, type=bool)
+                      default=True, type=bool)
   parser.add_argument('--checksession', dest='checksession',
                       help='checksession to load model',
                       default=1, type=int)
   parser.add_argument('--checkepoch', dest='checkepoch',
                       help='checkepoch to load model',
-                      default=1, type=int)
+                      default=3, type=int)
   parser.add_argument('--checkpoint', dest='checkpoint',
                       help='checkpoint to load model',
-                      default=0, type=int)
+                      default=56642, type=int)
 # log and display
   parser.add_argument('--use_tfb', dest='use_tfboard',
                       help='whether use tensorboard',
@@ -149,8 +149,11 @@ class sampler(Sampler):
     return self.num_data
 
 if __name__ == '__main__':
-
-  with open('loss.txt', 'w+') as loss_w:
+  n = 0
+  with open('loss_4'
+            ''
+            ''
+            '.txt', 'w+') as loss_w:
 
       args = parse_args()
 
@@ -273,7 +276,7 @@ if __name__ == '__main__':
       net = ResNet18().to(device)
 
       # lhy:选择net的优化器（net用来提取mhi_feat）
-      opt = torch.optim.Adam(net.parameters(), lr=1e-3)
+      #opt = torch.optim.Adam(net.parameters(), lr=1e-3)
 
 
       lr = cfg.TRAIN.LEARNING_RATE #0.001
@@ -309,7 +312,7 @@ if __name__ == '__main__':
 
       if args.resume:
         load_name = os.path.join(output_dir,
-          'faster_rcnn_{}_{}_{}.pth'.format(args.checksession, args.checkepoch, args.checkpoint))
+          'faster_rcnn_mhi_{}_{}_{}.pth'.format(args.checksession, args.checkepoch, args.checkpoint))
         print("loading checkpoint %s" % (load_name))
         checkpoint = torch.load(load_name)
         args.session = checkpoint['session']
@@ -347,7 +350,18 @@ if __name__ == '__main__':
 
         data_iter = iter(dataloader)
         for step in range(iters_per_epoch):
-          data = next(data_iter)
+          try:
+              data = next(data_iter)
+          except RuntimeError as e:
+              if 'invalid argument 0' in str(e):
+                   n+=1
+                   print('Got 1000 and 800 in dimension 2 at /pytorch/aten/src/TH/generic/THTensorMath.c:3586')
+                   step+=1
+                   print(n)
+              else:
+                  raise e
+
+
           im_data.data.resize_(data[0].size()).copy_(data[0])
           im_info.data.resize_(data[1].size()).copy_(data[1])
           gt_boxes.data.resize_(data[2].size()).copy_(data[2])
@@ -355,12 +369,13 @@ if __name__ == '__main__':
           #lhy
           MHI_data.data.resize_(data[4].size()).copy_(data[4])
 
-          #lhy:把MHI_data从单通道变为多通道
-          MHI_data = np.concatenate((MHI_data, MHI_data, MHI_data), axis=1)  # 数组拼接
+          # #lhy:把MHI_data从单通道变为多通道
+          # MHI_data = np.concatenate((MHI_data, MHI_data, MHI_data), axis=1)  # 数组拼接
           MHI_data = torch.tensor(MHI_data)
           MHI_data=MHI_data.to(device)
           #lhy;提取运动历史图像的特征
           MHI_feat=net(MHI_data)
+          MHI_feat=MHI_feat.detach()
 
           #lhy:将运动历史图像的特征传入faster rcnn.py中，和视频帧的特征进行拼接
           fasterRCNN.zero_grad()
@@ -368,6 +383,10 @@ if __name__ == '__main__':
           rpn_loss_cls, rpn_loss_box, \
           RCNN_loss_cls, RCNN_loss_bbox, \
           rois_label = fasterRCNN(im_data, im_info, gt_boxes, num_boxes,MHI_feat)
+          # rois, cls_prob, bbox_pred, \
+          # rpn_loss_cls, rpn_loss_box, \
+          # RCNN_loss_cls, RCNN_loss_bbox, \
+          # rois_label = fasterRCNN(im_data, im_info, gt_boxes, num_boxes)
 
           loss = rpn_loss_cls.mean() + rpn_loss_box.mean() \
                + RCNN_loss_cls.mean() + RCNN_loss_bbox.mean()
@@ -375,12 +394,12 @@ if __name__ == '__main__':
 
           # backward
           optimizer.zero_grad()
-          opt.zero_grad()
+          #opt.zero_grad()
           loss.backward()
           if args.net == "vgg16":
               clip_gradient(fasterRCNN, 10.)
           optimizer.step()
-          opt.step()
+          #opt.step()
 
           if step % args.disp_interval == 0:
             end = time.time()
@@ -424,7 +443,7 @@ if __name__ == '__main__':
             loss_temp = 0
             start = time.time()
 
-        save_name = os.path.join(output_dir, 'faster_rcnn_{}_{}_{}.pth'.format(args.session, epoch, step))
+        save_name = os.path.join(output_dir, 'faster_rcnn_mhi_{}_{}_{}.pth'.format(args.session, epoch, step))
         save_checkpoint({
           'session': args.session,
           'epoch': epoch + 1,

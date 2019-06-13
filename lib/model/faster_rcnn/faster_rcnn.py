@@ -38,6 +38,7 @@ class _fasterRCNN(nn.Module):
         self.RCNN_roi_crop = _RoICrop()
 
     def forward(self,im_data, im_info, gt_boxes, num_boxes,MHI_feat):
+    #def forward(self,im_data, im_info, gt_boxes, num_boxes):
         '''
         
         :param im_data: 
@@ -67,7 +68,7 @@ class _fasterRCNN(nn.Module):
 
         print(MHI_feat.shape)#[1,256,38,67]
         base_feat = self.RCNN_base(im_data)
-        print(base_feat.shape)#[1,1024,38,67]
+        #print(base_feat.shape)#[1,1024,38,67]
         #LHY 拼接运动历史图像的特征和视频帧的特征
         base_feat=torch.cat([base_feat,MHI_feat],1)
 

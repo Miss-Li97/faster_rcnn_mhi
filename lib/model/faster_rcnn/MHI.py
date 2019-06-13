@@ -20,6 +20,7 @@ class BasicBlock(nn.Module):
 
   def __init__(self, inplanes, planes, stride=1, downsample=None):
     super(BasicBlock, self).__init__()
+
     self.conv1 = conv3x3(inplanes, planes, stride)
     self.bn1 = nn.BatchNorm2d(planes)
     self.relu = nn.ReLU(inplace=True)
@@ -50,6 +51,8 @@ class resnet18(nn.Module):
   def __init__(self, block, layers, num_classes=1000):
     self.inplanes = 64
     super(resnet18, self).__init__()
+    # lhy;使用conv0将mhi-data转换为三通道
+    self.conv0 = nn.Conv2d(1, 3, kernel_size=3, stride=1, padding=1, bias=False)
     self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3,
                  bias=False)
 
@@ -91,6 +94,8 @@ class resnet18(nn.Module):
     return nn.Sequential(*layers)
 
   def forward(self, x):
+    # lhy；
+    x = self.conv0(x)
     x = self.conv1(x)
     x = self.bn1(x)
     x = self.relu(x)

@@ -12,6 +12,7 @@ from __future__ import print_function
 
 import numpy as np
 import numpy.random as npr
+import torchvision.transforms as tt
 from scipy.misc import imread
 from model.utils.config import cfg
 from model.utils.blob import prep_im_for_blob, im_list_to_blob,mhi_list_to_blob
@@ -71,8 +72,16 @@ def _get_image_blob(roidb, scale_inds):
     MHI_path=roidb[i]['image'].replace("JPEGImages","MHI")
     #print(MHI_path)
     MHI_data=imread(MHI_path)
-    # print(im.shape)#(360,450,3)
-    # print(MHI_data.shape)#(360,450)
+    # im=tt.Compose([
+    #   tt.Resize((660,1280)),
+    #   tt.ToTensor()
+    # ] )
+    # MHI_data=tt.Compose([
+    #   tt.Resize((660,1280)),
+    #   tt.ToTensor()
+    # ] )
+    # print(im)#(360,450,3)
+    # print(MHI_data)#(360,450)
     if len(im.shape) == 2 :
       im = im[:,:,np.newaxis]#在np.newaxis所在的位置增加一个维度
       im = np.concatenate((im,im,im), axis=2)#数组拼接

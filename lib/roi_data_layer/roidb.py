@@ -29,7 +29,7 @@ def prepare_roidb(imdb):
 
   roidb = imdb.roidb
   if not (imdb.name.startswith('coco')):
-    cache_file = os.path.join(imdb.cache_path, imdb.name + '_sizes.pkl')
+    cache_file = os.path.join(imdb.cache_path, imdb.name + '_30_sizes.pkl')
     if os.path.exists(cache_file):
       print('Image sizes loaded from %s' % cache_file)
       with open(cache_file, 'rb') as f:

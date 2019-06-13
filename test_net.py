@@ -30,6 +30,7 @@ from model.rpn.bbox_transform import bbox_transform_inv
 from model.utils.net_utils import save_net, load_net, vis_detections
 from model.faster_rcnn.vgg16 import vgg16
 from model.faster_rcnn.resnet import resnet
+from model.faster_rcnn.MHI import ResNet18
 
 import pdb
 
@@ -82,7 +83,7 @@ def parse_args():
                       default=1, type=int)
   parser.add_argument('--checkpoint', dest='checkpoint',
                       help='checkpoint to load network',
-                      default=10021, type=int)
+                      default=56642, type=int)
   parser.add_argument('--vis', dest='vis',
                       help='visualization mode',
                       action='store_true')
@@ -96,6 +97,7 @@ weight_decay = cfg.TRAIN.WEIGHT_DECAY
 if __name__ == '__main__':
 
   args = parse_args()
+
 
   print('Called with args:')
   print(args)
@@ -145,8 +147,9 @@ if __name__ == '__main__':
   if not os.path.exists(input_dir):
     raise Exception('There is no input directory for loading network from ' + input_dir)
   load_name = os.path.join(input_dir,
-    'faster_rcnn_{}_{}_{}.pth'.format(args.checksession, args.checkepoch, args.checkpoint))
+    'faster_rcnn_mhi_{}_{}_{}.pth'.format(args.checksession, args.checkepoch, args.checkpoint))
 
+  device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
   # initilize the network here.
   if args.net == 'vgg16':
     fasterRCNN = vgg16(imdb.classes, pretrained=False, class_agnostic=args.class_agnostic)
@@ -161,10 +164,12 @@ if __name__ == '__main__':
     pdb.set_trace()
 
   fasterRCNN.create_architecture()
+  net = ResNet18().to(device)
 
   print("load checkpoint %s" % (load_name))
   checkpoint = torch.load(load_name)
   fasterRCNN.load_state_dict(checkpoint['model'])
+
   if 'pooling_mode' in checkpoint.keys():
     cfg.POOLING_MODE = checkpoint['pooling_mode']
 
@@ -175,6 +180,7 @@ if __name__ == '__main__':
   im_info = torch.FloatTensor(1)
   num_boxes = torch.LongTensor(1)
   gt_boxes = torch.FloatTensor(1)
+  MHI_data = torch.FloatTensor(1)
 
   # ship to cuda
   if args.cuda:
@@ -182,12 +188,14 @@ if __name__ == '__main__':
     im_info = im_info.cuda()
     num_boxes = num_boxes.cuda()
     gt_boxes = gt_boxes.cuda()
+    MHI_data = MHI_data.cuda()
 
   # make variable
   im_data = Variable(im_data)
   im_info = Variable(im_info)
   num_boxes = Variable(num_boxes)
   gt_boxes = Variable(gt_boxes)
+  MHI_data = Variable(MHI_data)
 
   if args.cuda:
     cfg.CUDA = True
@@ -225,18 +233,34 @@ if __name__ == '__main__':
   fasterRCNN.eval()
   empty_array = np.transpose(np.array([[],[],[],[],[]]), (1,0))
   for i in range(num_images):
-
-      data = next(data_iter)
+      try:
+        data = next(data_iter)
+      except RuntimeError as e:
+          if 'invalid argument 0' in str(e):
+              print('Got 1000 and 800 in dimension 2 at /pytorch/aten/src/TH/generic/THTensorMath.c:3586')
+              i += 1
+          else:
+              raise e
       im_data.data.resize_(data[0].size()).copy_(data[0])
       im_info.data.resize_(data[1].size()).copy_(data[1])
       gt_boxes.data.resize_(data[2].size()).copy_(data[2])
       num_boxes.data.resize_(data[3].size()).copy_(data[3])
+      # lhy
+      MHI_data.data.resize_(data[4].size()).copy_(data[4])
+
+      # lhy:把MHI_data从单通道变为多通道
+      #MHI_data = np.concatenate((MHI_data, MHI_data, MHI_data), axis=1)  # 数组拼接
+      MHI_data = torch.tensor(MHI_data)
+      MHI_data = MHI_data.to(device)
+      # lhy;提取运动历史图像的特征
+      MHI_feat = net(MHI_data)
+      MHI_feat=MHI_feat.detach()
 
       det_tic = time.time()
       rois, cls_prob, bbox_pred, \
       rpn_loss_cls, rpn_loss_box, \
       RCNN_loss_cls, RCNN_loss_bbox, \
-      rois_label = fasterRCNN(im_data, im_info, gt_boxes, num_boxes)
+      rois_label = fasterRCNN(im_data, im_info, gt_boxes, num_boxes,MHI_feat)
 
       scores = cls_prob.data
       boxes = rois.data[:, :, 1:5]
